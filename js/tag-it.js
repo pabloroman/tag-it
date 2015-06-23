@@ -50,7 +50,9 @@
 
             // When enabled, quotes are unneccesary for inputting multi-word tags.
             allowSpaces: false,
-
+			
+			// When enabled, it will store pairs of ID and values, instead of just values.
+			allowIDs: false,
             // The below options are for using a single field instead of several
             // for our form values.
             //
@@ -181,7 +183,7 @@
                     if (target.hasClass('tagit-label')) {
                         var tag = target.closest('.tagit-choice');
                         if (!tag.hasClass('removed')) {
-                            that._trigger('onTagClicked', e, {tag: tag, tagLabel: that.tagLabel(tag)});
+                            that._trigger('onTagClicked', e, {tag: tag, tagLabel: that.tagLabel(tag), tagId: that.tagId(tag)});
                         }
                     } else {
                         // Sets the focus() to the input field, if the user
@@ -197,12 +199,23 @@
                 if (this.options.singleFieldNode) {
                     // Add existing tags from the input field.
                     var node = $(this.options.singleFieldNode);
-                    var tags = node.val().split(this.options.singleFieldDelimiter);
-                    node.val('');
-                    $.each(tags, function(index, tag) {
-                        that.createTag(tag, null, true);
-                        addedExistingFromSingleFieldNode = true;
-                    });
+                    if (this.options.allowIDs) {
+	                    var tags = node.data("value");
+	                    if(tags) {
+		                    $.each(tags, function(id, name) {
+		                        that.createTag({id: id, value:name}, null, true);
+		                        addedExistingFromSingleFieldNode = true;
+		                    });
+	                    }
+                    } else {
+                    	var tags = node.val().split(this.options.singleFieldDelimiter);
+                    	node.val('');
+                    	$.each(tags, function(index, tag) {
+	                        that.createTag(tag, null, true);
+	                        addedExistingFromSingleFieldNode = true;
+	                    });
+                    }
+
                 } else {
                     // Create our single field input after our list.
                     this.options.singleFieldNode = $('<input type="hidden" style="display:none;" value="" name="' + this.options.fieldName + '" />');
@@ -266,7 +279,7 @@
                         }
 
                         // Autocomplete will create its own tag from a selection and close automatically.
-                        if (!(that.options.autocomplete.autoFocus && that.tagInput.data('autocomplete-open'))) {
+                        if (!(that.tagInput.data('autocomplete-open'))) {
                             that.tagInput.autocomplete('close');
                             that.createTag(that._cleanedInput());
                         }
@@ -283,7 +296,7 @@
             if (this.options.availableTags || this.options.tagSource || this.options.autocomplete.source) {
                 var autocompleteOptions = {
                     select: function(event, ui) {
-                        that.createTag(ui.item.value);
+                        that.createTag(ui.item);
                         // Preventing the tag input to be updated with the chosen value.
                         return false;
                     }
@@ -404,6 +417,11 @@
                 return $(tag).find('input:first').val();
             }
         },
+        
+        tagId: function(tag) {
+	        // Returns the tag's id.
+            return $(tag).data('id');
+        },
 
         _showAutocomplete: function() {
             this.tagInput.autocomplete('search', '');
@@ -436,10 +454,16 @@
             return Boolean($.effects && ($.effects[name] || ($.effects.effect && $.effects.effect[name])));
         },
 
-        createTag: function(value, additionalClass, duringInitialization) {
+        createTag: function(object, additionalClass, duringInitialization) {
             var that = this;
-
-            value = $.trim(value);
+            
+			if(typeof object === 'object') {
+				value = $.trim(object.value);
+				id = object.id;
+			} else {
+            	value = $.trim(object);
+            	id = false;
+            }
 
             if(this.options.preprocessTag) {
                 value = this.options.preprocessTag(value);
@@ -470,7 +494,7 @@
             var label = $(this.options.onTagClicked ? '<a class="tagit-label"></a>' : '<span class="tagit-label"></span>').text(value);
 
             // Create tag.
-            var tag = $('<li></li>')
+            var tag = $('<li></li>').data('id', id)
                 .addClass('tagit-choice ui-widget-content ui-state-default ui-corner-all')
                 .addClass(additionalClass)
                 .append(label);
@@ -501,6 +525,7 @@
             if (this._trigger('beforeTagAdded', null, {
                 tag: tag,
                 tagLabel: this.tagLabel(tag),
+                tagId: this.tagId(tag),
                 duringInitialization: duringInitialization
             }) === false) {
                 return;
@@ -523,6 +548,7 @@
             this._trigger('afterTagAdded', null, {
                 tag: tag,
                 tagLabel: this.tagLabel(tag),
+                tagId: this.tagId(tag),
                 duringInitialization: duringInitialization
             });
 
@@ -539,7 +565,7 @@
             // DEPRECATED.
             this._trigger('onTagRemoved', null, tag);
 
-            if (this._trigger('beforeTagRemoved', null, {tag: tag, tagLabel: this.tagLabel(tag)}) === false) {
+            if (this._trigger('beforeTagRemoved', null, {tag: tag, tagLabel: this.tagLabel(tag), tagId: this.tagId(tag)}) === false) {
                 return;
             }
 
@@ -558,14 +584,16 @@
 
                 var thisTag = this;
                 hide_args.push(function() {
+	                var id = thisTag.tagId(tag);
+	                var label = thisTag.tagLabel(tag);
                     tag.remove();
-                    thisTag._trigger('afterTagRemoved', null, {tag: tag, tagLabel: thisTag.tagLabel(tag)});
+                    thisTag._trigger('afterTagRemoved', null, {tag: tag, tagLabel: label, tagId: id});
                 });
 
                 tag.fadeOut('fast').hide.apply(tag, hide_args).dequeue();
             } else {
                 tag.remove();
-                this._trigger('afterTagRemoved', null, {tag: tag, tagLabel: this.tagLabel(tag)});
+                this._trigger('afterTagRemoved', null, {tag: tag, tagLabel: this.tagLabel(tag), tagId: this.tagId(tag)});
             }
 
         },
@@ -588,4 +616,3 @@
 
     });
 })(jQuery);
-
